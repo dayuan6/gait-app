@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 步态分析助手</title>
+    <!-- 引入 Tailwind CSS 进行样式设计 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Alpine.js 处理页面交互逻辑 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- 引入图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* 模拟移动端APP的容器样式 */
+        body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; position: relative; padding-bottom: 80px; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* 简单的加载动画 */
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* 视频容器 */
+        video { object-fit: cover; width: 100%; height: 100%; border-radius: 0.75rem; }
+    </style>
+</head>
+
+<body>
+
+<!-- Alpine.js 数据状态管理 -->
+<div x-data="appData()" class="app-container">
+
+    <!-- ================= 顶部导航栏 (根据页面动态变化) ================= -->
+    <header class="bg-blue-500 text-white p-4 sticky top-0 z-10 shadow-md">
+        <div class="flex items-center justify-between h-8">
+            <!-- 首页模式 -->
+            <template x-if="currentPage === 'home'">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-medium">您好，李女士 👋</span>
+                </div>
+            </template>
+
+            <!-- 非首页模式 (带返回按钮) -->
+            <template x-if="currentPage !== 'home'">
+                <div class="flex items-center w-full">
+                    <button @click="goHome()" class="mr-4 text-xl"><i class="fas fa-chevron-left"></i></button>
+                    <span class="text-lg font-medium mx-auto transform -translate-x-4" x-text="getPageTitle()"></span>
+                </div>
+            </template>
+        </div>
+    </header>
+
+    <!-- ================= 1. 首页 (Home) ================= -->
+    <div x-show="currentPage === 'home'" class="p-4 space-y-6 fade-in">
+        
+        <!-- 最近报告卡片 -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-lg p-5">
+            <h3 class="text-gray-700 font-semibold mb-4">您最近的步态分析报告</h3>
+            <p class="text-xs text-gray-400 mb-6">分析日期: 2025年10月28日</p>
+
+            <div class="space-y-4 mb-6">
+                <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                    <span class="text-gray-600">整体步态评分</span>
+                    <span class="text-blue-600 font-bold text-xl">82 <span class="text-sm text-gray-400 font-normal">/ 100</span></span>
+                </div>
+                <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                    <span class="text-gray-600">平衡性</span>
+                    <span class="text-green-500 font-medium">稳定</span>
+                </div>
+                <div class="flex justify-between items-center pb-2">
+                    <span class="text-gray-600">步频</span>
+                    <span class="text-blue-500 font-medium">略有改善</span>
+                </div>
+            </div>
+
+            <button @click="viewReport(sampleReport)" class="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 transition flex items-center justify-center gap-2">
+                查看完整报告 <i class="fas fa-arrow-right text-sm"></i>
+            </button>
+        </div>
+
+        <!-- 最新成就 -->
+        <div>
+            <h4 class="text-gray-500 text-sm font-bold mb-3">最新成就</h4>
+            <div class="flex gap-3">
+                <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                    <i class="fas fa-check-circle"></i> 平衡性改善
+                </span>
+                <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                    <i class="fas fa-chart-line"></i> 步频稳定
+                </span>
+            </div>
+        </div>
+
+        <!-- 下一步行动 -->
+        <div>
+            <h4 class="text-gray-500 text-sm font-bold mb-3">下一步</h4>
+            <p class="text-xs text-gray-400 mb-3">录制新的行走视频以更新您的步态报告</p>
+            <button @click="startRecordingFlow()" class="w-full bg-white border border-blue-400 text-blue-500 py-3 rounded-xl font-medium hover:bg-blue-50 transition">
+                录制新步态视频
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= 2. 录制页 (Record) ================= -->
+    <div x-show="currentPage === 'record'" class="p-4 flex flex-col h-[85vh]">
+        
+        <!-- 视频取景框 -->
+        <div class="flex-grow bg-gray-200 rounded-xl overflow-hidden relative mb-6 shadow-inner flex items-center justify-center">
+            
+            <!-- 摄像头未开启状态 -->
+            <div x-show="!cameraActive && !isAnalyzing" class="text-center text-gray-400">
+                <i class="fas fa-video text-4xl mb-2"></i>
+                <p>点击下方按钮开启摄像头</p>
+            </div>
+
+            <!-- 摄像头画面 -->
+            <video x-ref="videoFeed" x-show="cameraActive" autoplay playsinline muted class="absolute inset-0 w-full h-full bg-black"></video>
+
+            <!-- 录制中的覆盖层 -->
+            <div x-show="isRecording" class="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-xs animate-pulse">
+                REC 00:<span x-text="timer"></span>
+            </div>
+        </div>
+
+        <!-- 操作区域 -->
+        <div class="space-y-4">
+            <!-- 按钮状态切换 -->
+            <template x-if="!isAnalyzing">
+                <button 
+                    @click="toggleCameraAction()" 
+                    :class="isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'"
+                    class="w-full text-white py-4 rounded-xl font-bold text-lg shadow-lg transition transform active:scale-95">
+                    <span x-text="getButtonText()"></span>
+                </button>
+            </template>
+
+            <!-- AI 分析中状态 (模拟) -->
+            <div x-show="isAnalyzing" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center gap-4">
+                <div class="loader flex-shrink-0"></div>
+                <div>
+                    <h4 class="text-blue-800 font-bold text-sm">AI 正在分析中...</h4>
+                    <p class="text-blue-600 text-xs mt-1">正在上传云端并计算关节角度与步态参数</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 3. 报告页 (Report) - 填补细节 ================= -->
+    <div x-show="currentPage === 'report'" class="p-4 space-y-4">
+        
+        <!-- 总分仪表盘 -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-blue-500"></div>
+            <p class="text-gray-500 text-sm mb-2">综合步态评分</p>
+            <h1 class="text-5xl font-bold text-blue-600 mb-2">85</h1>
+            <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">状态：优秀</span>
+        </div>
+
+        <!-- 详细数据网格 -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <p class="text-gray-400 text-xs">步频 (步/分)</p>
+                <p class="text-xl font-bold text-gray-800 mt-1">112 <span class="text-xs font-normal text-green-500">↑ 正常</span></p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <p class="text-gray-400 text-xs">平均步幅 (cm)</p>
+                <p class="text-xl font-bold text-gray-800 mt-1">62 <span class="text-xs font-normal text-yellow-500">↓ 偏小</span></p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <p class="text-gray-400 text-xs">双脚支撑期</p>
+                <p class="text-xl font-bold text-gray-800 mt-1">22% <span class="text-xs font-normal text-gray-400">标准</span></p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <p class="text-gray-400 text-xs">对称性偏差</p>
+                <p class="text-xl font-bold text-gray-800 mt-1">3.5% <span class="text-xs font-normal text-green-500">良好</span></p>
+            </div>
+        </div>
+
+        <!-- 步态问题分析 -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm">
+            <h3 class="font-bold text-gray-700 mb-4 border-l-4 border-blue-500 pl-3">AI 诊断建议</h3>
+            <ul class="space-y-3">
+                <li class="flex items-start gap-3">
+                    <i class="fas fa-exclamation-circle text-yellow-500 mt-1"></i>
+                    <p class="text-sm text-gray-600">检测到<span class="font-bold text-gray-800">左腿抬起高度略低</span>，可能存在轻微的拖步现象。</p>
+                </li>
+                <li class="flex items-start gap-3">
+                    <i class="fas fa-check-circle text-green-500 mt-1"></i>
+                    <p class="text-sm text-gray-600">上身姿态保持良好，摆臂幅度对称。</p>
+                </li>
+            </ul>
+        </div>
+
+        <button @click="goHome()" class="w-full border border-gray-300 text-gray-600 py-3 rounded-xl mt-4 hover:bg-gray-50">返回首页</button>
+    </div>
+
+    <!-- ================= 4. 历史记录 (History) - 填补细节 ================= -->
+    <div x-show="currentPage === 'history'" class="p-4">
+        <div class="space-y-4">
+            <!-- 历史列表项 1 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center text-blue-600 font-bold text-lg">85</div>
+                    <div>
+                        <p class="font-bold text-gray-800">刚刚</p>
+                        <p class="text-xs text-gray-400">录制时长 00:15</p>
+                    </div>
+                </div>
+                <button class="text-gray-400 hover:text-blue-500"><i class="fas fa-chevron-right"></i></button>
+            </div>
+
+            <!-- 历史列表项 2 -->
+            <div class="bg-white p-4 rounded-xl shadow-sm flex items-center justify-between opacity-80">
+                <div class="flex items-center gap-4">
+                    <div class="bg-blue-50 w-12 h-12 rounded-lg flex items-center justify-center text-blue-600 font-bold text-lg">82</div>
+                    <div>
+                        <p class="font-bold text-gray-800">2025年10月28日</p>
+                        <p class="text-xs text-gray-400">下午 14:30</p>
+                    </div>
+                </div>
+                <button class="text-gray-400 hover:text-blue-500"><i class="fas fa-chevron-right"></i></button>
+            </div>
+
+             <!-- 历史列表项 3 -->
+             <div class="bg-white p-4 rounded-xl shadow-sm flex items-center justify-between opacity-60">
+                <div class="flex items-center gap-4">
+                    <div class="bg-yellow-50 w-12 h-12 rounded-lg flex items-center justify-center text-yellow-600 font-bold text-lg">76</div>
+                    <div>
+                        <p class="font-bold text-gray-800">2025年10月15日</p>
+                        <p class="text-xs text-gray-400">上午 09:15</p>
+                    </div>
+                </div>
+                <button class="text-gray-400 hover:text-blue-500"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 底部 Tab 导航 ================= -->
+    <nav class="fixed bottom-0 w-full max-w-[480px] bg-white border-t border-gray-200 flex justify-around py-3 pb-5 text-xs text-gray-400 z-50">
+        <button @click="changeTab('home')" :class="currentPage === 'home' ? 'text-blue-500' : 'hover:text-gray-600'" class="flex flex-col items-center gap-1">
+            <i class="fas fa-home text-xl"></i>
+            <span>首页</span>
+        </button>
+        <button @click="startRecordingFlow()" :class="currentPage === 'record' ? 'text-blue-500' : 'hover:text-gray-600'" class="flex flex-col items-center gap-1">
+            <div class="bg-blue-500 text-white rounded-full p-3 -mt-6 shadow-lg border-4 border-white">
+                <i class="fas fa-video text-lg"></i>
+            </div>
+            <span class="mt-1">录制</span>
+        </button>
+        <button @click="changeTab('history')" :class="currentPage === 'history' ? 'text-blue-500' : 'hover:text-gray-600'" class="flex flex-col items-center gap-1">
+            <i class="fas fa-history text-xl"></i>
+            <span>历史</span>
+        </button>
+        <button class="flex flex-col items-center gap-1 hover:text-gray-600">
+            <i class="fas fa-user text-xl"></i>
+            <span>我的</span>
+        </button>
+    </nav>
+
+</div>
+
+<script>
+    function appData() {
+        return {
+            currentPage: 'home', // home, record, report, history
+            cameraActive: false,
+            isRecording: false,
+            isAnalyzing: false,
+            timer: 15,
+            stream: null,
+            sampleReport: {}, // 这里可以存放具体的报告数据对象
+
+            // 页面标题逻辑
+            getPageTitle() {
+                switch(this.currentPage) {
+                    case 'record': return '录制新步态视频';
+                    case 'report': return '完整步态分析报告';
+                    case 'history': return '历史报告';
+                    default: return '';
+                }
+            },
+
+            // 切换 Tab
+            changeTab(page) {
+                this.stopCamera(); // 切换页面时关闭摄像头
+                this.currentPage = page;
+                window.scrollTo(0,0);
+            },
+
+            // 返回首页
+            goHome() {
+                this.changeTab('home');
+                this.isAnalyzing = false;
+                this.isRecording = false;
+            },
+
+            // 开始录制流程
+            startRecordingFlow() {
+                this.currentPage = 'record';
+                // 自动开启摄像头 (真实调用)
+                this.$nextTick(() => {
+                    this.startCamera();
+                });
+            },
+
+            // 摄像头逻辑
+            async startCamera() {
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+                    this.$refs.videoFeed.srcObject = this.stream;
+                    this.cameraActive = true;
+                } catch (err) {
+                    alert("无法访问摄像头，请检查权限或使用HTTPS环境。");
+                    console.error(err);
+                }
+            },
+
+            stopCamera() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+                this.cameraActive = false;
+            },
+
+            // 按钮逻辑：开始录制 -> 停止录制 -> 分析
+            toggleCameraAction() {
+                if (!this.cameraActive) {
+                    this.startCamera();
+                    return;
+                }
+
+                if (!this.isRecording) {
+                    // 开始录制
+                    this.isRecording = true;
+                    this.timer = 15;
+                    // 模拟倒计时
+                    this.timerInterval = setInterval(() => {
+                        if(this.timer > 0) this.timer--;
+                    }, 1000);
+                } else {
+                    // 停止录制并开始分析
+                    this.finishRecording();
+                }
+            },
+
+            getButtonText() {
+                if (!this.cameraActive) return '开启摄像头';
+                if (this.isRecording) return '完成录制 (点击停止)';
+                return '开始录制步态视频';
+            },
+
+            finishRecording() {
+                clearInterval(this.timerInterval);
+                this.isRecording = false;
+                this.stopCamera(); // 停止摄像头流
+                this.isAnalyzing = true;
+
+                // 模拟 AI 后端分析过程 (延迟3秒)
+                setTimeout(() => {
+                    this.isAnalyzing = false;
+                    this.currentPage = 'report'; // 跳转到报告页
+                }, 3000);
+            },
+            
+            viewReport(reportData) {
+                this.currentPage = 'report';
+                window.scrollTo(0,0);
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
