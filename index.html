@@ -243,10 +243,9 @@
             <span>首页</span>
         </button>
         <button @click="startRecordingFlow()" :class="currentPage === 'record' ? 'text-blue-500' : 'hover:text-gray-600'" class="flex flex-col items-center gap-1">
-            <div class="bg-blue-500 text-white rounded-full p-3 -mt-6 shadow-lg border-4 border-white">
                 <i class="fas fa-video text-lg"></i>
             </div>
-            <span class="mt-1">录制</span>
+            <span >录制</span>
         </button>
         <button @click="changeTab('history')" :class="currentPage === 'history' ? 'text-blue-500' : 'hover:text-gray-600'" class="flex flex-col items-center gap-1">
             <i class="fas fa-history text-xl"></i>
@@ -375,3 +374,4 @@
 </body>
 
 </html>
+
